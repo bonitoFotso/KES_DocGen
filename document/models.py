@@ -2,37 +2,9 @@ from django.db import models
 from django.core.validators import RegexValidator
 from django.db.models import Max
 from django.utils.timezone import now
-from django.core.exceptions import ValidationError
-from django.contrib.auth import get_user_model
-from decimal import Decimal
-
-User = get_user_model()
 
 
-# Utilitaires
-def generate_reference(entity_code, doc_type, related_ids, client_id, sequence):
-    date = now()
-    return f"{entity_code}-{doc_type}-{'-'.join(map(str, related_ids))}-{date.year}-{date.month:02d}-{client_id}-{sequence:04d}"
-
-
-# Querysets personnalisés
-class DocumentQuerySet(models.QuerySet):
-    def with_related(self):
-        return self.select_related('client', 'entity').prefetch_related('attachments')
-
-
-# Modèles de base
-class BaseModel(models.Model):
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="%(class)s_created")
-    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="%(class)s_updated")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        abstract = True
-
-
-class Entity(BaseModel):
+class Entity(models.Model):
     code = models.CharField(
         max_length=3,
         unique=True,
@@ -44,7 +16,7 @@ class Entity(BaseModel):
         return self.name
 
 
-class Client(BaseModel):
+class Client(models.Model):
     nom = models.CharField(max_length=255)
     email = models.EmailField(blank=True, null=True)
     telephone = models.CharField(max_length=15, blank=True, null=True)
@@ -54,7 +26,7 @@ class Client(BaseModel):
         return self.nom
 
 
-class Site(BaseModel):
+class Site(models.Model):
     nom = models.CharField(max_length=255)
     client = models.ForeignKey(Client, on_delete=models.CASCADE)
     localisation = models.CharField(max_length=255, blank=True, null=True)
@@ -64,11 +36,11 @@ class Site(BaseModel):
         return self.nom
 
 
-class Category(BaseModel):
+class Category(models.Model):
     code = models.CharField(
         max_length=3,
         validators=[RegexValidator(regex='^[A-Z]{3}$')]
-    )
+    )  # INS, FOR, QHS, etc.
     name = models.CharField(max_length=50)
     entity = models.ForeignKey(Entity, on_delete=models.CASCADE)
 
@@ -76,7 +48,7 @@ class Category(BaseModel):
         return self.name
 
 
-class Product(BaseModel):
+class Product(models.Model):
     code = models.CharField(
         max_length=4,
         validators=[RegexValidator(regex='^(VTE|EC)\d+$')]
@@ -88,85 +60,69 @@ class Product(BaseModel):
         return self.name
 
 
-# Gestion des documents
-class DocumentStatus(models.TextChoices):
-    DRAFT = 'BROUILLON', 'Brouillon'
-    SENT = 'ENVOYE', 'Envoyé'
-    VALIDATED = 'VALIDE', 'Validé'
-    REFUSED = 'REFUSE', 'Refusé'
-
-
-class Document(BaseModel):
+class Document(models.Model):
+    STATUTS = [
+        ('BROUILLON', 'Brouillon'),
+        ('ENVOYE', 'Envoyé'),
+        ('VALIDE', 'Validé'),
+        ('REFUSE', 'Refusé'),
+    ]
     entity = models.ForeignKey(Entity, on_delete=models.CASCADE)
     reference = models.CharField(max_length=50, unique=True, editable=False)
     client = models.ForeignKey(Client, on_delete=models.CASCADE)
-    statut = models.CharField(max_length=10, choices=DocumentStatus.choices, default=DocumentStatus.DRAFT)
+    date_creation = models.DateTimeField(auto_now_add=True)
+    statut = models.CharField(max_length=10, choices=STATUTS, default='BROUILLON')
     doc_type = models.CharField(
         max_length=3,
         validators=[RegexValidator(regex='^[A-Z]{3}$')]
-    )
+    )  # PRF, FAC, etc.
     sequence_number = models.IntegerField()
-
-    objects = DocumentQuerySet.as_manager()
-
-    class Meta:
-        abstract = False
-
-    def __str__(self):
-        return self.reference
-
-
-class FinancialDocument(Document):
-    montant_ht = models.DecimalField(max_digits=10, decimal_places=2)
-    tva = models.DecimalField(max_digits=10, decimal_places=2)
-    montant_ttc = models.DecimalField(max_digits=10, decimal_places=2)
 
     class Meta:
         abstract = True
 
-    def clean(self):
-        super().clean()
-        calculated_ttc = self.montant_ht + self.tva
-        if abs(self.montant_ttc - calculated_ttc) > Decimal('0.01'):
-            raise ValidationError("Le montant TTC doit être égal au montant HT + TVA")
+    def __str__(self):
+        return self.reference
+
+class Affaire(Document):
+    offre = models.OneToOneField('Offre', on_delete=models.CASCADE, related_name="affaire")
+    date_debut = models.DateTimeField(auto_now_add=True)
+    date_fin_prevue = models.DateTimeField(null=True, blank=True)
+    statut = models.CharField(
+        max_length=20,
+        choices=[
+            ('EN_COURS', 'En cours'),
+            ('TERMINEE', 'Terminée'),
+            ('ANNULEE', 'Annulée'),
+        ],
+        default='EN_COURS'
+    )
+
+    def save(self, *args, **kwargs):
+        if not self.reference:
+            if not self.sequence_number:
+                last_sequence = Affaire.objects.filter(
+                    entity=self.entity,
+                    doc_type='AFF',
+                    date_creation__year=now().year,
+                    date_creation__month=now().month
+                ).aggregate(Max('sequence_number'))['sequence_number__max']
+                self.sequence_number = (last_sequence or 0) + 1
+            total_affaires_client = Affaire.objects.filter(client=self.client).count() + 1
+            date = self.date_creation or now()
+            self.reference = f"{self.entity.code}-AFF-{self.offre.id}-{date.year}-{date.month:02d}-{self.client.id}-{total_affaires_client}-{self.sequence_number:04d}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Affaire {self.reference} - {self.offre.client.nom}"
 
 
-class DocumentAttachment(BaseModel):
-    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='attachments')
-    file = models.FileField(upload_to='documents/')
-    description = models.TextField(blank=True)
-
-
-class DocumentVersion(BaseModel):
-    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='versions')
-    version = models.IntegerField()
-    content = models.TextField()
-
-    class Meta:
-        unique_together = ['document', 'version']
-
-
-class DocumentPermission(BaseModel):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='permissions')
-    can_read = models.BooleanField(default=True)
-    can_edit = models.BooleanField(default=False)
-    can_validate = models.BooleanField(default=False)
-
-
-class DocumentNotification(BaseModel):
-    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='notifications')
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    message = models.TextField()
-    read = models.BooleanField(default=False)
-
-
-# Documents spécifiques
-class Offre(FinancialDocument):
+class Offre(Document):
     produit = models.ManyToManyField(Product)
     date_modification = models.DateTimeField(auto_now=True)
-    date_validation = models.DateTimeField(blank=True, null=True)
+    date_validation = models.DateTimeField(blank=True, null=True)  # Date d'acceptation
     sites = models.ManyToManyField(Site)
+
 
     def save(self, *args, **kwargs):
         if not self.reference:
@@ -178,40 +134,49 @@ class Offre(FinancialDocument):
                     date_creation__month=now().month
                 ).aggregate(Max('sequence_number'))['sequence_number__max']
                 self.sequence_number = (last_sequence or 0) + 1
+            total_offres_client = Offre.objects.filter(client=self.client).count() + 1
+            date = self.date_creation or now()
+            self.reference = f"{self.entity.code}-OFF-{date.year}-{date.month:02d}-{self.client.id}-{total_offres_client}-{self.sequence_number:04d}"
 
-            self.reference = generate_reference(
-                self.entity.code,
-                'OFF',
-                [],
-                self.client.id,
-                self.sequence_number
-            )
+        if self.statut == 'VALIDE' and not self.date_validation:
+            self.date_validation = now()
+            self.creer_affaire()
+        elif self.statut == 'VALIDE' and self.date_validation:
+            self.date_validation = now()
+            self.creer_affaire()
 
-        if self.statut == DocumentStatus.VALIDATED:
-            self.date_validation = self.date_validation or now()
-            self.creer_proforma()
 
         super().save(*args, **kwargs)
 
-    def creer_proforma(self):
-        if self.statut != DocumentStatus.VALIDATED:
-            raise ValidationError("L'offre doit être validée pour créer un proforma.")
+    def creer_affaire(self):
+        """
+        Crée l'affaire et le proforma associés à l'offre.
+        Cette méthode est appelée automatiquement quand le statut passe à 'VALIDE'.
+        """
+        if self.statut != 'VALIDE':
+            raise ValueError("L'offre doit être en statut 'VALIDE' pour créer une affaire.")
 
         if hasattr(self, 'proforma'):
-            return self.proforma
+            raise ValueError("Une affaire existe déjà pour cette proforma.")
 
-        return Proforma.objects.create(
+        if not self.date_validation:
+            raise ValueError("L'offre n'a pas de date de validation.")
+
+
+
+        # Créer le proforma
+        proforma = Proforma.objects.create(
             offre=self,
             client=self.client,
             entity=self.entity,
             doc_type='PRO',
-            montant_ht=self.montant_ht,
-            montant_ttc=self.montant_ttc,
-            tva=self.tva
         )
 
+        return proforma
 
-class Proforma(FinancialDocument):
+
+
+class Proforma(Document):
     offre = models.OneToOneField(Offre, on_delete=models.CASCADE, related_name="proforma")
 
     def save(self, *args, **kwargs):
@@ -224,104 +189,86 @@ class Proforma(FinancialDocument):
                     date_creation__month=now().month
                 ).aggregate(Max('sequence_number'))['sequence_number__max']
                 self.sequence_number = (last_sequence or 0) + 1
+            total_proformas_client = Proforma.objects.filter(client=self.client).count() + 1
+            date = self.date_creation or now()
+            self.reference = f"{self.entity.code}-PRO-{self.offre.id}-{date.year}-{date.month:02d}-{self.client.id}-{total_proformas_client}-{self.sequence_number:04d}"
+            if self.statut == 'VALIDE' and not self.date_validation:
+                self.date_validation = now()
+                self.creer_affaire()
+            elif self.statut == 'VALIDE' and self.date_validation:
+                self.date_validation = now()
+                self.creer_affaire()
 
-            self.reference = generate_reference(
-                self.entity.code,
-                'PRO',
-                [self.offre.id],
-                self.client.id,
-                self.sequence_number
-            )
-
-        if self.statut == DocumentStatus.VALIDATED:
-            self.creer_affaire()
-
-        super().save(*args, **kwargs)
+            super().save(*args, **kwargs)
 
     def creer_affaire(self):
-        if self.statut != DocumentStatus.VALIDATED:
-            raise ValidationError("Le proforma doit être validé pour créer une affaire.")
+            """
+            Crée l'affaire et le proforma associés à l'offre.
+            Cette méthode est appelée automatiquement quand le statut passe à 'VALIDE'.
+            """
+            if self.statut != 'VALIDE':
+                raise ValueError("L'offre doit être en statut 'VALIDE' pour créer une affaire.")
 
-        if hasattr(self, 'affaire'):
-            return self.affaire
+            if hasattr(self, 'affaire'):
+                raise ValueError("Une affaire existe déjà pour cette offre.")
 
-        return Affaire.objects.create(
-            proforma=self,
-            client=self.client,
-            entity=self.entity,
-            doc_type='AFF'
-        )
+            if not self.date_validation:
+                raise ValueError("L'offre n'a pas de date de validation.")
 
-
-class Affaire(Document):
-    proforma = models.OneToOneField(Proforma, on_delete=models.CASCADE, related_name="affaire")
-    date_debut = models.DateTimeField(auto_now_add=True)
-    date_fin_prevue = models.DateTimeField(null=True, blank=True)
-
-    class AffaireStatus(models.TextChoices):
-        EN_COURS = 'EN_COURS', 'En cours'
-        TERMINEE = 'TERMINEE', 'Terminée'
-        ANNULEE = 'ANNULEE', 'Annulée'
-
-    statut_affaire = models.CharField(
-        max_length=20,
-        choices=AffaireStatus.choices,
-        default=AffaireStatus.EN_COURS
-    )
-
-    def clean(self):
-        super().clean()
-        if self.date_fin_prevue and self.date_fin_prevue < self.date_debut:
-            raise ValidationError("La date de fin prévue ne peut pas être antérieure à la date de début")
-
-    def save(self, *args, **kwargs):
-        if not self.reference:
-            if not self.sequence_number:
-                last_sequence = type(self).objects.filter(
-                    entity=self.entity,
-                    doc_type='AFF',
-                    date_creation__year=now().year,
-                    date_creation__month=now().month
-                ).aggregate(Max('sequence_number'))['sequence_number__max']
-                self.sequence_number = (last_sequence or 0) + 1
-
-            self.reference = generate_reference(
-                self.entity.code,
-                'AFF',
-                [self.proforma.offre.id],
-                self.client.id,
-                self.sequence_number
+            # Créer l'affaire
+            affaire = Affaire.objects.create(
+                offre=self,
+                client=self.client,
+                entity=self.entity,
+                doc_type='AFF',
             )
 
-        super().save(*args, **kwargs)
 
 
-class Facture(FinancialDocument):
+            return affaire
+
+
+class Facture(Document):
     affaire = models.OneToOneField(Affaire, on_delete=models.CASCADE, related_name="facture")
 
     def save(self, *args, **kwargs):
         if not self.reference:
             if not self.sequence_number:
-                last_sequence = type(self).objects.filter(
+                last_sequence = Facture.objects.filter(
                     entity=self.entity,
                     doc_type='FAC',
                     date_creation__year=now().year,
                     date_creation__month=now().month
                 ).aggregate(Max('sequence_number'))['sequence_number__max']
                 self.sequence_number = (last_sequence or 0) + 1
-
-            self.reference = generate_reference(
-                self.entity.code,
-                'FAC',
-                [self.affaire.id, self.affaire.proforma.offre.id],
-                self.client.id,
-                self.sequence_number
-            )
-
+            total_factures_client = Facture.objects.filter(client=self.affaire.client).count() + 1
+            date = self.date_creation or now()
+            self.reference = f"{self.entity.code}-FAC-{self.affaire.id}-{self.affaire.offre.id}-{date.year}-{date.month:02d}-{self.client.id}-{total_factures_client}-{self.sequence_number:04d}"
         super().save(*args, **kwargs)
 
 
-class Formation(BaseModel):
+class Rapport(Document):
+    affaire = models.ForeignKey(Affaire, on_delete=models.CASCADE, related_name="rapport")
+    site = models.ForeignKey
+
+
+    def save(self, *args, **kwargs):
+        if not self.reference:
+            if not self.sequence_number:
+                last_sequence = Rapport.objects.filter(
+                    entity=self.entity,
+                    doc_type='RAP',
+                    date_creation__year=now().year,
+                    date_creation__month=now().month
+                ).aggregate(Max('sequence_number'))['sequence_number__max']
+                self.sequence_number = (last_sequence or 0) + 1
+            total_rapports_client = Rapport.objects.filter(client=self.affaire.client).count() + 1
+            date = self.date_creation or now()
+            self.reference = f"{self.entity.code}-RAP-{self.affaire.offre.id}-{self.affaire.offre.id}-{date.year}-{date.month:02d}-{self.client.id}-{total_rapports_client}-{self.sequence_number:04d}"
+        super().save(*args, **kwargs)
+
+
+class Formation(models.Model):
     titre = models.CharField(max_length=255)
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="formations")
     proforma = models.OneToOneField(Proforma, on_delete=models.CASCADE, related_name="formation")
@@ -329,16 +276,11 @@ class Formation(BaseModel):
     date_fin = models.DateTimeField()
     description = models.TextField(blank=True, null=True)
 
-    def clean(self):
-        super().clean()
-        if self.date_fin < self.date_debut:
-            raise ValidationError("La date de fin ne peut pas être antérieure à la date de début")
-
     def __str__(self):
         return f"{self.titre} - {self.client.nom}"
 
 
-class Participant(BaseModel):
+class Participant(models.Model):
     nom = models.CharField(max_length=255)
     prenom = models.CharField(max_length=255)
     email = models.EmailField(blank=True, null=True)
@@ -351,27 +293,28 @@ class Participant(BaseModel):
 
 
 class AttestationFormation(Document):
+    affaire = models.ForeignKey(Affaire, on_delete=models.CASCADE, related_name="attestations")
     formation = models.ForeignKey(Formation, on_delete=models.CASCADE, related_name="attestations")
-    participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name="attestation")
+    participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name= "attestation")
     details_formation = models.TextField()
 
     def save(self, *args, **kwargs):
         if not self.reference:
             if not self.sequence_number:
-                last_sequence = type(self).objects.filter(
+                last_sequence = AttestationFormation.objects.filter(
                     entity=self.entity,
+                    client=self.affaire.client,
+                    formation=self.formation,
                     doc_type='ATT',
                     date_creation__year=now().year,
                     date_creation__month=now().month
                 ).aggregate(Max('sequence_number'))['sequence_number__max']
                 self.sequence_number = (last_sequence or 0) + 1
-
-            self.reference = generate_reference(
-                self.entity.code,
-                'ATT',
-                [self.formation.proforma.affaire.id, self.formation.id, self.participant.id],
-                self.client.id,
-                self.sequence_number
-            )
-
+            total_attestations_client = AttestationFormation.objects.filter(client=self.client).count() + 1
+            date = self.date_creation or now()
+            self.reference = f"{self.entity.code}-ATT-{self.affaire.id}-{date.year}-{date.month:02d}-{self.client.id}-{total_attestations_client}-{self.formation.id}-{self.participant.id}-{self.sequence_number:04d}"
         super().save(*args, **kwargs)
+
+
+class DocumentPermission:
+    pass

@@ -4,31 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b1e049bc-99e8-4fd4-b382-1ffecb0dd8b1" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/KES_DocGen.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/KES_DocGen/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/KES_DocGen/asgi.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/KES_DocGen/settings.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/KES_DocGen/urls.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/KES_DocGen/wsgi.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/db.sqlite3" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/document/forms.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/document/migrations/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/document/mod.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/document/permissions.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/document/serializers.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/document/templates/documents/create.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/document/templates/documents/list.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/document/urls.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/manage.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/seed_data.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/base.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/home.html" afterDir="false" />
+    <list default="true" id="b1e049bc-99e8-4fd4-b382-1ffecb0dd8b1" name="Changes" comment="t2">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/document/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/document/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/document/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/document/serializers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/document/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/document/urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/document/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/document/views.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -161,11 +142,32 @@
       <workItem from="1735434038931" duration="15773000" />
       <workItem from="1735560089380" duration="2278000" />
       <workItem from="1735778562201" duration="23320000" />
-      <workItem from="1736031381107" duration="18859000" />
+      <workItem from="1736031381107" duration="22601000" />
     </task>
+    <task id="LOCAL-00001" summary="t2">
+      <option name="closed" value="true" />
+      <created>1736250275703</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1736250275703</updated>
+    </task>
+    <task id="LOCAL-00002" summary="t2">
+      <option name="closed" value="true" />
+      <created>1736250311335</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1736250311335</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="t2" />
+    <option name="LAST_COMMIT_MESSAGE" value="t2" />
   </component>
 </project>
