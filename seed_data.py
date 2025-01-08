@@ -2,8 +2,9 @@ from document.models import Entity, Category, Product
 
 def seed_data():
     # Création des entités
-    kes_inspections = Entity.objects.create(code="KES", name="KES INSPECTIONS & PROJECTS")
+    kes_inspections = Entity.objects.create(code="KIP", name="KES INSPECTIONS & PROJECTS")
     kes_energy = Entity.objects.create(code="KEC", name="KES ENERGY & CARBON")
+    kes_sarl = Entity.objects.create(code="KES", name="KES SARL")
 
     # Création des catégories pour KES INSPECTIONS & PROJECTS
     categories_kes = {

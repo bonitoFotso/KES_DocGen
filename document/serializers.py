@@ -34,6 +34,7 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ProductSerializer(serializers.ModelSerializer):
+    code = serializers.CharField()  #
     class Meta:
         model = Product
         fields = '__all__'
@@ -69,14 +70,7 @@ class RapportSerializer(serializers.ModelSerializer):
         model = Rapport
         fields = '__all__'
 
-class OffreListSerializer(serializers.ModelSerializer):
-    entity = EntitySerializer()
-    client = ClientSerializer()
-    category = CategorySerializer()
-    produit = ProductSerializer()
-    class Meta:
-        model = Offre
-        fields = '__all__'
+
 
 class SiteListSerializer(serializers.ModelSerializer):
     client = ClientSerializer()
@@ -96,3 +90,31 @@ class RapportListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rapport
         fields = '__all__'
+
+class OffreListSerializer(serializers.ModelSerializer):
+    entity = EntitySerializer()
+    client = ClientSerializer()
+    produit = ProductListSerializer(many=True)
+    sites = SiteListSerializer(many=True)
+    class Meta:
+        model = Offre
+        fields = '__all__'
+
+class AffaireListSerializer(serializers.ModelSerializer):
+    offre = OffreListSerializer()
+    facture = FactureSerializer()
+    rapports = RapportSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Affaire
+        fields = [
+            'reference',
+            'date_creation',
+            'statut',
+            'date_debut',
+            'date_fin_prevue',
+            'offre',
+            'facture',
+            'rapports',
+            'attestations',
+        ]

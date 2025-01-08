@@ -84,37 +84,7 @@ class Document(models.Model):
     def __str__(self):
         return self.reference
 
-class Affaire(Document):
-    offre = models.OneToOneField('Offre', on_delete=models.CASCADE, related_name="affaire")
-    date_debut = models.DateTimeField(auto_now_add=True)
-    date_fin_prevue = models.DateTimeField(null=True, blank=True)
-    statut = models.CharField(
-        max_length=20,
-        choices=[
-            ('EN_COURS', 'En cours'),
-            ('TERMINEE', 'Terminée'),
-            ('ANNULEE', 'Annulée'),
-        ],
-        default='EN_COURS'
-    )
 
-    def save(self, *args, **kwargs):
-        if not self.reference:
-            if not self.sequence_number:
-                last_sequence = Affaire.objects.filter(
-                    entity=self.entity,
-                    doc_type='AFF',
-                    date_creation__year=now().year,
-                    date_creation__month=now().month
-                ).aggregate(Max('sequence_number'))['sequence_number__max']
-                self.sequence_number = (last_sequence or 0) + 1
-            total_affaires_client = Affaire.objects.filter(client=self.client).count() + 1
-            date = self.date_creation or now()
-            self.reference = f"{self.entity.code}-AFF-{self.offre.id}-{date.year}-{date.month:02d}-{self.client.id}-{total_affaires_client}-{self.sequence_number:04d}"
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"Affaire {self.reference} - {self.offre.client.nom}"
 
 
 class Offre(Document):
@@ -227,7 +197,68 @@ class Proforma(Document):
 
             return affaire
 
+class Affaire(Document):
+    offre = models.OneToOneField(Offre, on_delete=models.CASCADE, related_name="affaire")
+    date_debut = models.DateTimeField(auto_now_add=True)
+    date_fin_prevue = models.DateTimeField(null=True, blank=True)
+    statut = models.CharField(
+        max_length=20,
+        choices=[
+            ('EN_COURS', 'En cours'),
+            ('TERMINEE', 'Terminée'),
+            ('ANNULEE', 'Annulée'),
+        ],
+        default='EN_COURS'
+    )
 
+    def save(self, *args, **kwargs):
+        if not self.reference:
+            if not self.sequence_number:
+                last_sequence = Affaire.objects.filter(
+                    entity=self.entity,
+                    doc_type='AFF',
+                    date_creation__year=now().year,
+                    date_creation__month=now().month
+                ).aggregate(Max('sequence_number'))['sequence_number__max']
+                self.sequence_number = (last_sequence or 0) + 1
+            total_affaires_client = Affaire.objects.filter(client=self.client).count() + 1
+            date = self.date_creation or now()
+            self.reference = f"{self.entity.code}-AFF-{self.offre.id}-{date.year}-{date.month:02d}-{self.client.id}-{total_affaires_client}-{self.sequence_number:04d}"
+            self.cree_rapports()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Affaire {self.reference} - {self.offre.client.nom}"
+    
+    def cree_rapports(self):
+        """
+        Crée les rapports associés à l'affaire.
+        """
+        if self.statut != 'TERMINEE':
+            raise ValueError("L'affaire doit être en statut 'TERMINEE' pour créer des rapports.")
+        
+        # Créer les rapports
+        for site in self.offre.sites.all():
+            for produit in self.offre.produit.all():
+                rapport = Rapport.objects.create(
+                    affaire=self,
+                    site=site,
+                    produit=produit,
+                    entity=self.entity,
+                    doc_type='RAP',
+                )
+
+        for produit in self.offre.produit.all():
+            if produit.category.code == 'FOR':
+                formation = Formation.objects.create(
+                    titre=f"Formation {produit.name}",
+                    client=self.client,
+                    affaire=self,
+                    date_debut=self.date_debut,
+                    date_fin=self.date_fin_prevue,
+                    description=f"Formation sur le produit {produit.name}"
+                )
+                
 class Facture(Document):
     affaire = models.OneToOneField(Affaire, on_delete=models.CASCADE, related_name="facture")
 
@@ -248,8 +279,9 @@ class Facture(Document):
 
 
 class Rapport(Document):
-    affaire = models.ForeignKey(Affaire, on_delete=models.CASCADE, related_name="rapport")
-    site = models.ForeignKey
+    affaire = models.ForeignKey(Affaire, on_delete=models.CASCADE, related_name="rapports")
+    site = models.ForeignKey(Site, on_delete=models.CASCADE)
+    produit = models.OneToOneField(Product, on_delete=models.CASCADE, related_name="rapports")
 
 
     def save(self, *args, **kwargs):
@@ -271,9 +303,10 @@ class Rapport(Document):
 class Formation(models.Model):
     titre = models.CharField(max_length=255)
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="formations")
-    proforma = models.OneToOneField(Proforma, on_delete=models.CASCADE, related_name="formation")
-    date_debut = models.DateTimeField()
-    date_fin = models.DateTimeField()
+    affaire = models.ForeignKey(Affaire, on_delete=models.CASCADE, related_name="formations")
+    rapport = models.ForeignKey(Rapport, on_delete=models.CASCADE, related_name="formation")
+    date_debut = models.DateTimeField(blank=True, null=True)
+    date_fin = models.DateTimeField(blank=True, null=True)
     description = models.TextField(blank=True, null=True)
 
     def __str__(self):

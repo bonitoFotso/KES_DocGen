@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import (
+    AffaireListCreateView,
     ClientListCreateView,
     OffreListCreateView, OffreRetrieveUpdateDeleteView,
     ProformaListCreateView, ProformaRetrieveUpdateDeleteView,
@@ -19,6 +20,7 @@ urlpatterns = [
     path('formations/', FormationListCreateView.as_view(), name='formation-list-create'),
     path('categories/', CategoryListCreateView.as_view(), name='category-list-create'),
     path('products/', ProductListCreateView.as_view(), name='product-list-create'),
+    path('affaires/', AffaireListCreateView.as_view(), name='affaire-list-create'),
 
     path('offres/', OffreListCreateView.as_view(), name='offre-list-create'),
     path('offres/<int:pk>/', OffreRetrieveUpdateDeleteView.as_view(), name='offre-detail'),

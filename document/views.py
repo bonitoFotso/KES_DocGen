@@ -2,8 +2,8 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from .models import Offre, Proforma, Facture, Rapport, Client, Site, Category, Product, Entity, Formation, Participant
-from .serializers import OffreSerializer, ProformaSerializer, FactureSerializer, RapportSerializer, ClientSerializer, \
+from .models import Affaire, Offre, Proforma, Facture, Rapport, Client, Site, Category, Product, Entity, Formation, Participant
+from .serializers import AffaireListSerializer, AffaireSerializer, OffreSerializer, ProformaSerializer, FactureSerializer, RapportSerializer, ClientSerializer, \
     SiteSerializer, CategorySerializer, ProductSerializer, EntitySerializer, OffreListSerializer, FormationSerializer, \
     ParticipantSerializer, SiteListSerializer, ProductListSerializer, RapportListSerializer
 
@@ -69,14 +69,14 @@ class OffreListCreateView(generics.ListCreateAPIView):
         return OffreListSerializer
 
 class AffaireListCreateView(generics.ListCreateAPIView):
-    queryset = Offre.objects.all()
+    queryset = Affaire.objects.all()
 
     permission_classes = []
 
     def get_serializer_class(self):
         if self.request.method == 'POST':
-            return OffreSerializer
-        return OffreListSerializer
+            return AffaireSerializer
+        return AffaireListSerializer
 
 class OffreRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Offre.objects.all()
