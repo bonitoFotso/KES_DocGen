@@ -1,33 +1,19 @@
-from django.urls import path
-from .views import (
-    AffaireListCreateView,
-    ClientListCreateView,
-    OffreListCreateView, OffreRetrieveUpdateDeleteView,
-    ProformaListCreateView, ProformaRetrieveUpdateDeleteView,
-    FactureListCreateView, FactureRetrieveUpdateDeleteView,
-    RapportListCreateView, RapportRetrieveUpdateDeleteView, SiteListCreateView, CategoryListCreateView,
-    ProductListCreateView, EntityListCreateView, ParticipantListCreateView, FormationListCreateView
-)
+from rest_framework.routers import DefaultRouter
+from django.urls import path, include
 
+from document.views import AffaireViewSet, AttestationFormationViewSet, ClientViewSet, EntityViewSet, FormationViewSet, OffreViewSet, ProformaViewSet, RapportViewSet, SiteViewSet
 
+router = DefaultRouter()
+router.register(r'entities', EntityViewSet)
+router.register(r'clients', ClientViewSet)
+router.register(r'sites', SiteViewSet)
+router.register(r'offres', OffreViewSet)
+router.register(r'proformas', ProformaViewSet)
+router.register(r'affaires', AffaireViewSet)
+router.register(r'rapports', RapportViewSet)
+router.register(r'formations', FormationViewSet)
+router.register(r'attestations', AttestationFormationViewSet)
 
 urlpatterns = [
-    path('entities/', EntityListCreateView.as_view(), name='client-list-create'),
-
-    path('clients/', ClientListCreateView.as_view(), name='client-list-create'),
-    path('sites/', SiteListCreateView.as_view(), name='site-list-create'),
-    path('participants/', ParticipantListCreateView.as_view(), name='participant-list-create'),
-    path('formations/', FormationListCreateView.as_view(), name='formation-list-create'),
-    path('categories/', CategoryListCreateView.as_view(), name='category-list-create'),
-    path('products/', ProductListCreateView.as_view(), name='product-list-create'),
-    path('affaires/', AffaireListCreateView.as_view(), name='affaire-list-create'),
-
-    path('offres/', OffreListCreateView.as_view(), name='offre-list-create'),
-    path('offres/<int:pk>/', OffreRetrieveUpdateDeleteView.as_view(), name='offre-detail'),
-    path('proformas/', ProformaListCreateView.as_view(), name='proforma-list-create'),
-    path('proformas/<int:pk>/', ProformaRetrieveUpdateDeleteView.as_view(), name='proforma-detail'),
-    path('factures/', FactureListCreateView.as_view(), name='facture-list-create'),
-    path('factures/<int:pk>/', FactureRetrieveUpdateDeleteView.as_view(), name='facture-detail'),
-    path('rapports/', RapportListCreateView.as_view(), name='rapport-list-create'),
-    path('rapports/<int:pk>/', RapportRetrieveUpdateDeleteView.as_view(), name='rapport-detail'),
+    path('', include(router.urls)),
 ]

@@ -1,120 +1,93 @@
+# serializers.py
 from rest_framework import serializers
-from .models import Offre, Proforma, Facture, Rapport, Client, Site, Product, Category, Entity, Participant, Formation, \
-    Affaire
-
-
-class ClientSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Client
-        fields = '__all__'
+from .models import (
+    Entity, Client, Site, Category, Product, Offre, Proforma, 
+    Affaire, Facture, Rapport, Formation, Participant, AttestationFormation
+)
 
 class EntitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Entity
-        fields = '__all__'
+        fields = ['id', 'code', 'name']
 
-class ParticipantSerializer(serializers.ModelSerializer):
+class ClientSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Participant
-        fields = '__all__'
-
-class FormationSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Formation
-        fields = '__all__'
+        model = Client
+        fields = ['id', 'nom', 'email', 'telephone', 'adresse']
 
 class SiteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Site
-        fields = '__all__'
+        fields = ['id', 'nom', 'client', 'localisation', 'description']
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = '__all__'
+        fields = ['id', 'code', 'name', 'entity']
 
 class ProductSerializer(serializers.ModelSerializer):
-    code = serializers.CharField()  #
     class Meta:
         model = Product
-        fields = '__all__'
+        fields = ['id', 'code', 'name', 'category']
 
 class OffreSerializer(serializers.ModelSerializer):
     class Meta:
         model = Offre
-        fields = '__all__'
-
-
-class AffaireSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Affaire
-        fields = '__all__'
-
-
-
+        fields = [
+            'id', 'entity', 'reference', 'client', 'date_creation',
+            'statut', 'doc_type', 'sequence_number', 'produit',
+            'date_modification', 'date_validation', 'sites'
+        ]
+        read_only_fields = ['reference', 'sequence_number', 'date_creation']
 
 class ProformaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Proforma
-        fields = '__all__'
+        fields = [
+            'id', 'entity', 'reference', 'client', 'date_creation',
+            'statut', 'doc_type', 'sequence_number', 'offre'
+        ]
+        read_only_fields = ['reference', 'sequence_number', 'date_creation']
 
-
-class FactureSerializer(serializers.ModelSerializer):
+class AffaireSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Facture
-        fields = '__all__'
-
+        model = Affaire
+        fields = [
+            'id', 'entity', 'reference', 'client', 'date_creation',
+            'statut', 'doc_type', 'sequence_number', 'offre',
+            'date_debut', 'date_fin_prevue', 'statut_affaire'
+        ]
+        read_only_fields = ['reference', 'sequence_number', 'date_creation']
 
 class RapportSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rapport
-        fields = '__all__'
-
-
-
-class SiteListSerializer(serializers.ModelSerializer):
-    client = ClientSerializer()
-
-    class Meta:
-        model = Site
-        fields = '__all__'
-
-class ProductListSerializer(serializers.ModelSerializer):
-    category = CategorySerializer()
-    class Meta:
-        model = Product
-        fields = '__all__'
-
-class RapportListSerializer(serializers.ModelSerializer):
-    client = ClientSerializer()
-    class Meta:
-        model = Rapport
-        fields = '__all__'
-
-class OffreListSerializer(serializers.ModelSerializer):
-    entity = EntitySerializer()
-    client = ClientSerializer()
-    produit = ProductListSerializer(many=True)
-    sites = SiteListSerializer(many=True)
-    class Meta:
-        model = Offre
-        fields = '__all__'
-
-class AffaireListSerializer(serializers.ModelSerializer):
-    offre = OffreListSerializer()
-    facture = FactureSerializer()
-    rapports = RapportSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = Affaire
         fields = [
-            'reference',
-            'date_creation',
-            'statut',
-            'date_debut',
-            'date_fin_prevue',
-            'offre',
-            'facture',
-            'rapports',
-            'attestations',
+            'id', 'entity', 'reference', 'client', 'date_creation',
+            'statut', 'doc_type', 'sequence_number', 'affaire',
+            'site', 'produit'
         ]
+        read_only_fields = ['reference', 'sequence_number', 'date_creation']
+
+class FormationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Formation
+        fields = [
+            'id', 'titre', 'client', 'affaire', 'rapport',
+            'date_debut', 'date_fin', 'description'
+        ]
+
+class ParticipantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Participant
+        fields = ['id', 'nom', 'prenom', 'email', 'telephone', 'fonction', 'formation']
+
+class AttestationFormationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AttestationFormation
+        fields = [
+            'id', 'entity', 'reference', 'client', 'date_creation',
+            'statut', 'doc_type', 'sequence_number', 'affaire',
+            'formation', 'participant', 'details_formation'
+        ]
+        read_only_fields = ['reference', 'sequence_number', 'date_creation']

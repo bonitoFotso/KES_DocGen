@@ -2,6 +2,8 @@ from django.db import models
 from django.core.validators import RegexValidator
 from django.db.models import Max
 from django.utils.timezone import now
+from django.core.exceptions import ValidationError
+
 
 
 class Entity(models.Model):
@@ -59,206 +61,209 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
+class DocumentStatus:
+    DRAFT = 'BROUILLON'
+    SENT = 'ENVOYE'
+    VALIDATED = 'VALIDE'
+    REJECTED = 'REFUSE'
+    
+    CHOICES = [
+        (DRAFT, 'Brouillon'),
+        (SENT, 'Envoyé'),
+        (VALIDATED, 'Validé'),
+        (REJECTED, 'Refusé'),
+    ]
+
+class DocumentType:
+    OFFER = 'OFF'
+    PROFORMA = 'PRO'
+    BUSINESS = 'AFF'
+    REPORT = 'RAP'
+    INVOICE = 'FAC'
+    CERTIFICATE = 'ATT'
 
 class Document(models.Model):
-    STATUTS = [
-        ('BROUILLON', 'Brouillon'),
-        ('ENVOYE', 'Envoyé'),
-        ('VALIDE', 'Validé'),
-        ('REFUSE', 'Refusé'),
-    ]
-    entity = models.ForeignKey(Entity, on_delete=models.CASCADE)
-    reference = models.CharField(max_length=50, unique=True, editable=False)
-    client = models.ForeignKey(Client, on_delete=models.CASCADE)
+    entity = models.ForeignKey('Entity', on_delete=models.CASCADE)
+    reference = models.CharField(max_length=100, unique=True, editable=False)
+    client = models.ForeignKey('Client', on_delete=models.CASCADE)
     date_creation = models.DateTimeField(auto_now_add=True)
-    statut = models.CharField(max_length=10, choices=STATUTS, default='BROUILLON')
+    date_validation = models.DateTimeField(null=True, blank=True)
+    statut = models.CharField(max_length=10, choices=DocumentStatus.CHOICES, default=DocumentStatus.DRAFT)
     doc_type = models.CharField(
         max_length=3,
         validators=[RegexValidator(regex='^[A-Z]{3}$')]
-    )  # PRF, FAC, etc.
-    sequence_number = models.IntegerField()
+    )
+    sequence_number = models.IntegerField(editable=False)
 
     class Meta:
         abstract = True
 
-    def __str__(self):
-        return self.reference
+    def generate_reference(self):
+        """Generate a unique reference number for the document."""
+        if not self.sequence_number:
+            self.sequence_number = self._get_next_sequence_number()
+        
+        date = self.date_creation or now()
+        total_docs = self._get_total_documents() + 1
+        
+        reference_parts = [
+            self.entity.code,
+            self.doc_type,
+            str(date.year),
+            f"{date.month:02d}",
+            str(self.client.id),
+            str(total_docs),
+            f"{self.sequence_number:04d}"
+        ]
+        
+        return "-".join(reference_parts)
 
+    def _get_next_sequence_number(self):
+        """Get the next sequence number for the document type."""
+        last_sequence = type(self).objects.filter(
+            entity=self.entity,
+            doc_type=self.doc_type,
+            date_creation__year=now().year,
+            date_creation__month=now().month
+        ).aggregate(Max('sequence_number'))['sequence_number__max']
+        return (last_sequence or 0) + 1
 
+    def _get_total_documents(self):
+        """Get the total number of documents for this client."""
+        return type(self).objects.filter(client=self.client).count()
 
+    def validate(self):
+        """Validate the document and update its status."""
+        if self.statut != DocumentStatus.VALIDATED:
+            self.statut = DocumentStatus.VALIDATED
+            self.date_validation = now()
+            self.save()
 
-class Offre(Document):
-    produit = models.ManyToManyField(Product)
-    date_modification = models.DateTimeField(auto_now=True)
-    date_validation = models.DateTimeField(blank=True, null=True)  # Date d'acceptation
-    sites = models.ManyToManyField(Site)
-
+    def clean(self):
+        """Validate the document before saving."""
+        super().clean()
+        if self.statut == DocumentStatus.VALIDATED and not self.date_validation:
+            raise ValidationError("A validated document must have a validation date.")
 
     def save(self, *args, **kwargs):
         if not self.reference:
-            if not self.sequence_number:
-                last_sequence = Offre.objects.filter(
-                    entity=self.entity,
-                    doc_type='OFF',
-                    date_creation__year=now().year,
-                    date_creation__month=now().month
-                ).aggregate(Max('sequence_number'))['sequence_number__max']
-                self.sequence_number = (last_sequence or 0) + 1
-            total_offres_client = Offre.objects.filter(client=self.client).count() + 1
-            date = self.date_creation or now()
-            self.reference = f"{self.entity.code}-OFF-{date.year}-{date.month:02d}-{self.client.id}-{total_offres_client}-{self.sequence_number:04d}"
-
-        if self.statut == 'VALIDE' and not self.date_validation:
-            self.date_validation = now()
-            self.creer_affaire()
-        elif self.statut == 'VALIDE' and self.date_validation:
-            self.date_validation = now()
-            self.creer_affaire()
-
-
+            self.reference = self.generate_reference()
         super().save(*args, **kwargs)
 
-    def creer_affaire(self):
-        """
-        Crée l'affaire et le proforma associés à l'offre.
-        Cette méthode est appelée automatiquement quand le statut passe à 'VALIDE'.
-        """
-        if self.statut != 'VALIDE':
-            raise ValueError("L'offre doit être en statut 'VALIDE' pour créer une affaire.")
+class Offre(Document):
+    produit = models.ManyToManyField('Product')
+    sites = models.ManyToManyField('Site')
+    date_modification = models.DateTimeField(auto_now=True)
 
+    def save(self, *args, **kwargs):
+        creating = not self.pk
+        super().save(*args, **kwargs)
+        
+        if creating and self.statut == DocumentStatus.VALIDATED:
+            self.create_proforma()
+
+    def create_proforma(self):
+        """Create a proforma when the offer is validated."""
+        if self.statut != DocumentStatus.VALIDATED:
+            raise ValidationError("Cannot create proforma for non-validated offer.")
+            
         if hasattr(self, 'proforma'):
-            raise ValueError("Une affaire existe déjà pour cette proforma.")
-
-        if not self.date_validation:
-            raise ValueError("L'offre n'a pas de date de validation.")
-
-
-
-        # Créer le proforma
-        proforma = Proforma.objects.create(
+            return self.proforma
+            
+        return Proforma.objects.create(
             offre=self,
             client=self.client,
             entity=self.entity,
-            doc_type='PRO',
+            doc_type=DocumentType.PROFORMA
         )
-
-        return proforma
-
-
 
 class Proforma(Document):
     offre = models.OneToOneField(Offre, on_delete=models.CASCADE, related_name="proforma")
 
     def save(self, *args, **kwargs):
-        if not self.reference:
-            if not self.sequence_number:
-                last_sequence = Proforma.objects.filter(
-                    entity=self.entity,
-                    doc_type='PRO',
-                    date_creation__year=now().year,
-                    date_creation__month=now().month
-                ).aggregate(Max('sequence_number'))['sequence_number__max']
-                self.sequence_number = (last_sequence or 0) + 1
-            total_proformas_client = Proforma.objects.filter(client=self.client).count() + 1
-            date = self.date_creation or now()
-            self.reference = f"{self.entity.code}-PRO-{self.offre.id}-{date.year}-{date.month:02d}-{self.client.id}-{total_proformas_client}-{self.sequence_number:04d}"
-            if self.statut == 'VALIDE' and not self.date_validation:
-                self.date_validation = now()
-                self.creer_affaire()
-            elif self.statut == 'VALIDE' and self.date_validation:
-                self.date_validation = now()
-                self.creer_affaire()
+        creating = not self.pk
+        super().save(*args, **kwargs)
+        
+        if creating and self.statut == DocumentStatus.VALIDATED:
+            self.create_business()
 
-            super().save(*args, **kwargs)
+    def create_business(self):
+        """Create a business case when the proforma is validated."""
+        if self.statut != DocumentStatus.VALIDATED:
+            raise ValidationError("Cannot create business case for non-validated proforma.")
+            
+        if hasattr(self, 'affaire'):
+            return self.affaire
+            
+        return Affaire.objects.create(
+            offre=self.offre,
+            client=self.client,
+            entity=self.entity,
+            doc_type=DocumentType.BUSINESS
+        )
 
-    def creer_affaire(self):
-            """
-            Crée l'affaire et le proforma associés à l'offre.
-            Cette méthode est appelée automatiquement quand le statut passe à 'VALIDE'.
-            """
-            if self.statut != 'VALIDE':
-                raise ValueError("L'offre doit être en statut 'VALIDE' pour créer une affaire.")
-
-            if hasattr(self, 'affaire'):
-                raise ValueError("Une affaire existe déjà pour cette offre.")
-
-            if not self.date_validation:
-                raise ValueError("L'offre n'a pas de date de validation.")
-
-            # Créer l'affaire
-            affaire = Affaire.objects.create(
-                offre=self,
-                client=self.client,
-                entity=self.entity,
-                doc_type='AFF',
-            )
-
-
-
-            return affaire
+class BusinessStatus:
+    IN_PROGRESS = 'EN_COURS'
+    COMPLETED = 'TERMINEE'
+    CANCELLED = 'ANNULEE'
+    
+    CHOICES = [
+        (IN_PROGRESS, 'En cours'),
+        (COMPLETED, 'Terminée'),
+        (CANCELLED, 'Annulée'),
+    ]
 
 class Affaire(Document):
     offre = models.OneToOneField(Offre, on_delete=models.CASCADE, related_name="affaire")
     date_debut = models.DateTimeField(auto_now_add=True)
     date_fin_prevue = models.DateTimeField(null=True, blank=True)
-    statut = models.CharField(
+    statut_affaire = models.CharField(
         max_length=20,
-        choices=[
-            ('EN_COURS', 'En cours'),
-            ('TERMINEE', 'Terminée'),
-            ('ANNULEE', 'Annulée'),
-        ],
-        default='EN_COURS'
+        choices=BusinessStatus.CHOICES,
+        default=BusinessStatus.IN_PROGRESS
     )
 
-    def save(self, *args, **kwargs):
-        if not self.reference:
-            if not self.sequence_number:
-                last_sequence = Affaire.objects.filter(
-                    entity=self.entity,
-                    doc_type='AFF',
-                    date_creation__year=now().year,
-                    date_creation__month=now().month
-                ).aggregate(Max('sequence_number'))['sequence_number__max']
-                self.sequence_number = (last_sequence or 0) + 1
-            total_affaires_client = Affaire.objects.filter(client=self.client).count() + 1
-            date = self.date_creation or now()
-            self.reference = f"{self.entity.code}-AFF-{self.offre.id}-{date.year}-{date.month:02d}-{self.client.id}-{total_affaires_client}-{self.sequence_number:04d}"
-            self.cree_rapports()
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"Affaire {self.reference} - {self.offre.client.nom}"
-    
-    def cree_rapports(self):
-        """
-        Crée les rapports associés à l'affaire.
-        """
-        if self.statut != 'TERMINEE':
-            raise ValueError("L'affaire doit être en statut 'TERMINEE' pour créer des rapports.")
+    def complete_business(self):
+        """Complete the business case and generate related documents."""
+        if self.statut_affaire != BusinessStatus.COMPLETED:
+            raise ValidationError("Business case must be completed to generate documents.")
         
-        # Créer les rapports
+        self._create_reports()
+        self._create_training_sessions()
+        self._create_invoice()
+
+    def _create_reports(self):
+        """Create reports for each site and product combination."""
         for site in self.offre.sites.all():
             for produit in self.offre.produit.all():
-                rapport = Rapport.objects.create(
+                Rapport.objects.create(
                     affaire=self,
                     site=site,
                     produit=produit,
                     entity=self.entity,
-                    doc_type='RAP',
+                    doc_type=DocumentType.REPORT
                 )
 
-        for produit in self.offre.produit.all():
-            if produit.category.code == 'FOR':
-                formation = Formation.objects.create(
-                    titre=f"Formation {produit.name}",
-                    client=self.client,
-                    affaire=self,
-                    date_debut=self.date_debut,
-                    date_fin=self.date_fin_prevue,
-                    description=f"Formation sur le produit {produit.name}"
-                )
-                
+    def _create_training_sessions(self):
+        """Create training sessions for training products."""
+        for produit in self.offre.produit.filter(category__code='FOR'):
+            Formation.objects.create(
+                titre=f"Formation {produit.name}",
+                client=self.client,
+                affaire=self,
+                date_debut=self.date_debut,
+                date_fin=self.date_fin_prevue,
+                description=f"Formation sur le produit {produit.name}"
+            )
+
+    def _create_invoice(self):
+        """Create invoice for the business case."""
+        return Facture.objects.create(
+            affaire=self,
+            client=self.client,
+            entity=self.entity,
+            doc_type=DocumentType.INVOICE
+        )
 class Facture(Document):
     affaire = models.OneToOneField(Affaire, on_delete=models.CASCADE, related_name="facture")
 

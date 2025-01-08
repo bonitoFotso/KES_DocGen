@@ -20,3 +20,12 @@ class HasDocumentPermission(permissions.BasePermission):
             return perm.can_edit
         except DocumentPermission.DoesNotExist:
             return False
+        
+# permissions.py
+from rest_framework import permissions
+
+class IsEntityUser(permissions.BasePermission):
+    def has_object_permission(self, request, view, obj):
+        # Vérifie si l'utilisateur a accès à l'entité associée
+        print(request.user.has_entity_permission(obj.entity))
+        return True
