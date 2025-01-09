@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from .models import Affaire, Offre, Proforma, Facture, Rapport, Client, Site, Category, Product, Entity, Formation, Participant
-from .serializers import AffaireListSerializer, AffaireSerializer, OffreSerializer, ProformaSerializer, FactureSerializer, RapportSerializer, ClientSerializer, \
+from .serializers import AffaireListSerializer, AffaireSerializer, CategoryListSerializer, FormationListSerializer, OffreSerializer, ProformaListSerializer, ProformaSerializer, FactureSerializer, RapportSerializer, ClientSerializer, \
     SiteSerializer, CategorySerializer, ProductSerializer, EntitySerializer, OffreListSerializer, FormationSerializer, \
     ParticipantSerializer, SiteListSerializer, ProductListSerializer, RapportListSerializer
 
@@ -21,6 +21,14 @@ class FormationListCreateView(generics.ListCreateAPIView):
     queryset = Formation.objects.all()
     serializer_class = FormationSerializer
     permission_classes = []
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return FormationSerializer
+        return FormationListSerializer
+
+
+
 class ParticipantListCreateView(generics.ListCreateAPIView):
     queryset = Participant.objects.all()
     serializer_class = ParticipantSerializer
@@ -43,7 +51,7 @@ class CategoryListCreateView(generics.ListCreateAPIView):
     def get_serializer_class(self):
         if self.request.method == 'POST':
             return CategorySerializer
-        return CategorySerializer
+        return CategoryListSerializer
 
 class ProductListCreateView(generics.ListCreateAPIView):
     queryset = Product.objects.all()
@@ -86,8 +94,12 @@ class OffreRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
 
 class ProformaListCreateView(generics.ListCreateAPIView):
     queryset = Proforma.objects.all()
-    serializer_class = ProformaSerializer
     permission_classes = []
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return ProformaSerializer
+        return ProformaListSerializer
 
 
 class ProformaRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
@@ -123,3 +135,5 @@ class RapportRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Rapport.objects.all()
     serializer_class = RapportSerializer
     permission_classes = []
+
+

@@ -42,7 +42,7 @@ class Category(models.Model):
         validators=[RegexValidator(regex='^[A-Z]{3}$')]
     )  # INS, FOR, QHS, etc.
     name = models.CharField(max_length=50)
-    entity = models.ForeignKey(Entity, on_delete=models.CASCADE)
+    entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name="categoris")
 
     def __str__(self):
         return self.name
@@ -54,7 +54,7 @@ class Product(models.Model):
         validators=[RegexValidator(regex='^(VTE|EC)\d+$')]
     )
     name = models.CharField(max_length=100)
-    category = models.ForeignKey(Category, on_delete=models.CASCADE)
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="produits")
 
     def __str__(self):
         return self.name
@@ -224,7 +224,10 @@ class Affaire(Document):
             total_affaires_client = Affaire.objects.filter(client=self.client).count() + 1
             date = self.date_creation or now()
             self.reference = f"{self.entity.code}-AFF-{self.offre.id}-{date.year}-{date.month:02d}-{self.client.id}-{total_affaires_client}-{self.sequence_number:04d}"
+            self.entity = self.offre.entity
             self.cree_rapports()
+
+        
         super().save(*args, **kwargs)
 
     def __str__(self):

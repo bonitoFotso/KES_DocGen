@@ -1,4 +1,6 @@
-from django.urls import path
+from django.urls import include, path
+
+from document.DocumentAggregator import DocumentAggregatorView
 from .views import (
     AffaireListCreateView,
     ClientListCreateView,
@@ -30,4 +32,8 @@ urlpatterns = [
     path('factures/<int:pk>/', FactureRetrieveUpdateDeleteView.as_view(), name='facture-detail'),
     path('rapports/', RapportListCreateView.as_view(), name='rapport-list-create'),
     path('rapports/<int:pk>/', RapportRetrieveUpdateDeleteView.as_view(), name='rapport-detail'),
+
+    path('docs/', include('document.mod') ),
+
+        path('documents/', DocumentAggregatorView.as_view(), name='document-aggregator'),
 ]
