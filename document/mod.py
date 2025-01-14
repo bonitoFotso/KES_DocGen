@@ -122,6 +122,8 @@ class Proforma(Document):
         if "formation" in self.offre.produits.lower():
             formation = Formation.objects.create(client=self.client, proforma=self)
             documents.append(AttestationFormation.objects.create(proforma=self, formation=formation, client=self.client))
+            documents.append(Facture.objects.create(proforma=self, client=self.client))
+            documents.append(Rapport.objects.create(proforma=self, client=self.client))
         else:
             documents.append(Facture.objects.create(proforma=self, client=self.client))
             documents.append(Rapport.objects.create(proforma=self, client=self.client))
