@@ -211,57 +211,64 @@ class Affaire(Document):
         default='EN_COURS'
     )
 
-    def save(self, *args, **kwargs):
-        if not self.reference:
-            if not self.sequence_number:
-                last_sequence = Affaire.objects.filter(
-                    entity=self.entity,
-                    doc_type='AFF',
-                    date_creation__year=now().year,
-                    date_creation__month=now().month
-                ).aggregate(Max('sequence_number'))['sequence_number__max']
-                self.sequence_number = (last_sequence or 0) + 1
-            total_affaires_client = Affaire.objects.filter(client=self.client).count() + 1
-            date = self.date_creation or now()
-            self.reference = f"{self.entity.code}-AFF-{self.offre.id}-{date.year}-{date.month:02d}-{self.client.id}-{total_affaires_client}-{self.sequence_number:04d}"
-            self.entity = self.offre.entity
-            self.cree_rapports()
+    def sync_with_offre(self):
+        """Synchronise les champs de l'Affaire avec ceux de l'Offre"""
+        self.client = self.offre.client
+        self.entity = self.offre.entity
+        self.sites.set(self.offre.sites.all())
+        self.produits.set(self.offre.produits.all())
 
-        
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"Affaire {self.reference} - {self.offre.client.nom}"
-    
     def cree_rapports(self):
-        """
-        Crée les rapports associés à l'affaire.
-        """
-        if self.statut != 'TERMINEE':
-            raise ValueError("L'affaire doit être en statut 'TERMINEE' pour créer des rapports.")
+        """Crée les rapports pour chaque combinaison site-produit"""
+        from .models import Rapport  # Import local pour éviter les imports circulaires
         
-        # Créer les rapports
-        for site in self.offre.sites.all():
-            for produit in self.offre.produit.all():
-                rapport = Rapport.objects.create(
+        # Supprime les rapports existants
+        Rapport.objects.filter(affaire=self).delete()
+        
+        # Crée un rapport pour chaque combinaison site-produit
+        for site in self.sites.all():
+            for produit in self.produits.all():
+                Rapport.objects.create(
                     affaire=self,
                     site=site,
                     produit=produit,
+                    client=self.client,
                     entity=self.entity,
                     doc_type='RAP',
+                    statut='BROUILLON'
                 )
 
-        for produit in self.offre.produit.all():
-            if produit.category.code == 'FOR':
-                formation = Formation.objects.create(
-                    titre=f"Formation {produit.name}",
-                    client=self.client,
-                    affaire=self,
-                    date_debut=self.date_debut,
-                    date_fin=self.date_fin_prevue,
-                    description=f"Formation sur le produit {produit.name}"
-                )
-                
+    def save(self, *args, **kwargs):
+        creating = not self.pk  # Vérifie si c'est une création
+        
+        if creating:
+            # Synchronise avec l'offre lors de la création
+            self.sync_with_offre()
+            
+            # Génère la référence
+            if not self.reference:
+                if not self.sequence_number:
+                    last_sequence = Affaire.objects.filter(
+                        entity=self.entity,
+                        doc_type='AFF',
+                        date_creation__year=now().year,
+                        date_creation__month=now().month
+                    ).aggregate(Max('sequence_number'))['sequence_number__max']
+                    self.sequence_number = (last_sequence or 0) + 1
+
+                total_affaires_client = Affaire.objects.filter(client=self.client).count() + 1
+                date = self.date_creation or now()
+                self.reference = f"{self.entity.code}-AFF-{self.offre.id}-{date.year}-{date.month:02d}-{self.client.id}-{total_affaires_client}-{self.sequence_number:04d}"
+
+        super().save(*args, **kwargs)
+
+        if creating:
+            # Crée les rapports après la sauvegarde initiale
+            self.cree_rapports()
+
+    def __str__(self):
+        return f"Affaire {self.reference} - {self.offre.client.nom}"
+
 class Facture(Document):
     affaire = models.OneToOneField(Affaire, on_delete=models.CASCADE, related_name="facture")
 

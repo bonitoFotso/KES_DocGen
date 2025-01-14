@@ -1,39 +1,57 @@
-from django.urls import include, path
-
-from document.DocumentAggregator import DocumentAggregatorView
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from .views import (
-    AffaireListCreateView,
-    ClientListCreateView,
-    OffreListCreateView, OffreRetrieveUpdateDeleteView,
-    ProformaListCreateView, ProformaRetrieveUpdateDeleteView,
-    FactureListCreateView, FactureRetrieveUpdateDeleteView,
-    RapportListCreateView, RapportRetrieveUpdateDeleteView, SiteListCreateView, CategoryListCreateView,
-    ProductListCreateView, EntityListCreateView, ParticipantListCreateView, FormationListCreateView
+    EntityViewSet,
+    ClientViewSet,
+    SiteViewSet,
+    CategoryViewSet,
+    ProductViewSet,
+    OffreViewSet,
+    ProformaViewSet,
+    AffaireViewSet,
+    FactureViewSet,
+    RapportViewSet,
+    FormationViewSet,
+    ParticipantViewSet,
+    AttestationFormationViewSet,
 )
 
+# Création du router
+router = DefaultRouter()
 
+# Enregistrement des routes
+router.register(r'entities', EntityViewSet, basename='entity')
+router.register(r'clients', ClientViewSet, basename='client')
+router.register(r'sites', SiteViewSet, basename='site')
+router.register(r'categories', CategoryViewSet, basename='category')
+router.register(r'products', ProductViewSet, basename='product')
+router.register(r'offres', OffreViewSet, basename='offre')
+router.register(r'proformas', ProformaViewSet, basename='proforma')
+router.register(r'affaires', AffaireViewSet, basename='affaire')
+router.register(r'factures', FactureViewSet, basename='facture')
+router.register(r'rapports', RapportViewSet, basename='rapport')
+router.register(r'formations', FormationViewSet, basename='formation')
+router.register(r'participants', ParticipantViewSet, basename='participant')
+router.register(r'attestations', AttestationFormationViewSet, basename='attestation')
 
+app_name = 'api'
+
+# Pattern des URLs
 urlpatterns = [
-    path('entities/', EntityListCreateView.as_view(), name='client-list-create'),
-
-    path('clients/', ClientListCreateView.as_view(), name='client-list-create'),
-    path('sites/', SiteListCreateView.as_view(), name='site-list-create'),
-    path('participants/', ParticipantListCreateView.as_view(), name='participant-list-create'),
-    path('formations/', FormationListCreateView.as_view(), name='formation-list-create'),
-    path('categories/', CategoryListCreateView.as_view(), name='category-list-create'),
-    path('products/', ProductListCreateView.as_view(), name='product-list-create'),
-    path('affaires/', AffaireListCreateView.as_view(), name='affaire-list-create'),
-
-    path('offres/', OffreListCreateView.as_view(), name='offre-list-create'),
-    path('offres/<int:pk>/', OffreRetrieveUpdateDeleteView.as_view(), name='offre-detail'),
-    path('proformas/', ProformaListCreateView.as_view(), name='proforma-list-create'),
-    path('proformas/<int:pk>/', ProformaRetrieveUpdateDeleteView.as_view(), name='proforma-detail'),
-    path('factures/', FactureListCreateView.as_view(), name='facture-list-create'),
-    path('factures/<int:pk>/', FactureRetrieveUpdateDeleteView.as_view(), name='facture-detail'),
-    path('rapports/', RapportListCreateView.as_view(), name='rapport-list-create'),
-    path('rapports/<int:pk>/', RapportRetrieveUpdateDeleteView.as_view(), name='rapport-detail'),
-
-    path('docs/', include('document.mod') ),
-
-        path('documents/', DocumentAggregatorView.as_view(), name='document-aggregator'),
+    # Inclusion des URLs générées par le router
+    path('', include(router.urls)),
+    
+    # URLs d'authentification de DRF
+    path('auth/', include('rest_framework.urls', namespace='rest_framework')),
 ]
+
+# Les URLs générées seront du type :
+# /api/entities/
+# /api/entities/{pk}/
+# /api/clients/
+# /api/clients/{pk}/
+# /api/clients/{pk}/sites/
+# /api/offres/
+# /api/offres/{pk}/
+# /api/offres/{pk}/valider/
+# etc...
