@@ -104,6 +104,7 @@ class OffreViewSet(BaseModelViewSet):
     queryset = Offre.objects.all()
     serializer_class = OffreListSerializer
     detail_serializer_class = OffreDetailSerializer
+    edit_serializer_class = OffreEditSerializer
     filterset_fields = ['client', 'entity', 'statut', 'doc_type']
     search_fields = ['reference']
     ordering_fields = ['date_creation', 'date_modification']
@@ -147,6 +148,35 @@ class ProformaViewSet(BaseModelViewSet):
         proforma.statut = 'VALIDE'
         proforma.save()
         return Response({"detail": "Proforma validé avec succès."})
+    
+    @action(detail=True, methods=['post'])
+    def change_status(self, request, pk=None):
+        proforma = self.get_object()
+
+        # Vérifier si le nouveau statut est fourni dans la requête
+        new_status = request.data.get('status')
+        if not new_status:
+            return Response(
+                {"detail": "Le nouveau statut doit être fourni."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Vérifier si le nouveau statut est valide
+        valid_statuses = ['BROUILLON', 'VALIDE', 'ENVOYE']  # Ajoutez ici tous les statuts valides
+        if new_status not in valid_statuses:
+            return Response(
+                {"detail": f"Le statut doit être l'un des suivants : {', '.join(valid_statuses)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Mettre à jour le statut
+        proforma.statut = new_status
+        proforma.save()
+        print(f"Statut du proforma mis à jour avec succès vers '{new_status}'.")
+
+        return Response({
+            "detail": f"Statut du proforma mis à jour avec succès vers '{new_status}'."
+        })
 
 class AffaireViewSet(BaseModelViewSet):
     queryset = Affaire.objects.all()

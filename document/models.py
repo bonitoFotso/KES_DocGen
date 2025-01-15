@@ -99,23 +99,23 @@ class Offre(Document):
             if not self.sequence_number:
                 last_sequence = Offre.objects.filter(
                     entity=self.entity,
-                    doc_type='OFF',
                     date_creation__year=now().year,
                     date_creation__month=now().month
                 ).aggregate(Max('sequence_number'))['sequence_number__max']
                 self.sequence_number = (last_sequence or 0) + 1
+                print(self.sequence_number, last_sequence)
             total_offres_client = Offre.objects.filter(client=self.client).count() + 1
             date = self.date_creation or now()
             self.reference = f"{self.entity.code}-OFF-{date.year}-{date.month:02d}-{self.client.id}-{total_offres_client}-{self.sequence_number:04d}"
 
         if self.statut == 'VALIDE' and not self.date_validation:
-            self.date_validation = now()
+            self.date_validation = now() 
             self.creer_affaire()
         elif self.statut == 'VALIDE' and self.date_validation:
             self.date_validation = now()
             self.creer_affaire()
 
-
+        print(self.reference)
         super().save(*args, **kwargs)
 
     def creer_affaire(self):
@@ -162,14 +162,11 @@ class Proforma(Document):
             total_proformas_client = Proforma.objects.filter(client=self.client).count() + 1
             date = self.date_creation or now()
             self.reference = f"{self.entity.code}-PRO-{self.offre.id}-{date.year}-{date.month:02d}-{self.client.id}-{total_proformas_client}-{self.sequence_number:04d}"
-            if self.statut == 'VALIDE' and not self.date_validation:
-                self.date_validation = now()
-                self.creer_affaire()
-            elif self.statut == 'VALIDE' and self.date_validation:
-                self.date_validation = now()
-                self.creer_affaire()
+        if self.statut == 'VALIDE':
+            self.date_validation = now()
+            self.creer_affaire()
 
-            super().save(*args, **kwargs)
+        super().save(*args, **kwargs)
 
     def creer_affaire(self):
             """
@@ -187,7 +184,7 @@ class Proforma(Document):
 
             # Créer l'affaire
             affaire = Affaire.objects.create(
-                offre=self,
+                offre=self.offre,
                 client=self.client,
                 entity=self.entity,
                 doc_type='AFF',
@@ -215,8 +212,6 @@ class Affaire(Document):
         """Synchronise les champs de l'Affaire avec ceux de l'Offre"""
         self.client = self.offre.client
         self.entity = self.offre.entity
-        self.sites.set(self.offre.sites.all())
-        self.produits.set(self.offre.produits.all())
 
     def cree_rapports(self):
         """Crée les rapports pour chaque combinaison site-produit"""
@@ -226,8 +221,8 @@ class Affaire(Document):
         Rapport.objects.filter(affaire=self).delete()
         
         # Crée un rapport pour chaque combinaison site-produit
-        for site in self.sites.all():
-            for produit in self.produits.all():
+        for site in self.offre.sites.all():
+            for produit in self.offre.produit.all():
                 Rapport.objects.create(
                     affaire=self,
                     site=site,
@@ -237,6 +232,25 @@ class Affaire(Document):
                     doc_type='RAP',
                     statut='BROUILLON'
                 )
+                if produit.category.code == 'FOR':
+                    self.cree_formation(site, produit)
+
+    def cree_formation(self, site, produit):
+        """Crée une formation pour le site et le produit donnés"""
+        from .models import Formation
+        formation = Formation.objects.create(
+            titre=f"Formation {produit.name}",
+            client=self.client,
+            affaire=self,
+            rapport=Rapport.objects.get(affaire=self, site=site, produit=produit),
+            date_debut=self.date_debut,
+            date_fin=self.date_fin_prevue,
+            description=f"Formation {produit.name} pour le site {self.client.nom}"
+        )
+        return formation
+    
+
+
 
     def save(self, *args, **kwargs):
         creating = not self.pk  # Vérifie si c'est une création
@@ -291,7 +305,7 @@ class Facture(Document):
 class Rapport(Document):
     affaire = models.ForeignKey(Affaire, on_delete=models.CASCADE, related_name="rapports")
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
-    produit = models.OneToOneField(Product, on_delete=models.CASCADE, related_name="rapports")
+    produit = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="rapports")
 
 
     def save(self, *args, **kwargs):
@@ -306,7 +320,7 @@ class Rapport(Document):
                 self.sequence_number = (last_sequence or 0) + 1
             total_rapports_client = Rapport.objects.filter(client=self.affaire.client).count() + 1
             date = self.date_creation or now()
-            self.reference = f"{self.entity.code}-RAP-{self.affaire.offre.id}-{self.affaire.offre.id}-{date.year}-{date.month:02d}-{self.client.id}-{total_rapports_client}-{self.sequence_number:04d}"
+            self.reference = f"{self.entity.code}-RAP-{self.affaire.id}-{self.affaire.offre.id}-{date.year}-{date.month:02d}-{self.client.id}-{self.produit.code}-{total_rapports_client}-{self.sequence_number:04d}"
         super().save(*args, **kwargs)
 
 

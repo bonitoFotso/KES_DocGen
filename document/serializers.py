@@ -30,10 +30,11 @@ class ClientDetailSerializer(serializers.ModelSerializer):
 # Site Serializers
 class SiteListSerializer(serializers.ModelSerializer):
     client_nom = serializers.CharField(source='client.nom', read_only=True)
+    clientId = serializers.IntegerField(source='client.id', read_only=True)
     
     class Meta:
         model = Site
-        fields = ['id', 'nom', 'client_nom', 'localisation']
+        fields = ['id', 'nom', 'client_nom', 'localisation', 'clientId']
 
 class SiteDetailSerializer(serializers.ModelSerializer):
     client = ClientListSerializer(read_only=True)
@@ -62,10 +63,11 @@ class CategoryDetailSerializer(serializers.ModelSerializer):
 # Product Serializers
 class ProductListSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
+    categoryId = serializers.IntegerField(source='category.id', read_only=True)
     
     class Meta:
         model = Product
-        fields = ['id', 'code', 'name', 'category_name']
+        fields = ['id', 'code', 'name', 'category_name', 'categoryId']
 
 class ProductDetailSerializer(serializers.ModelSerializer):
     class Meta:
@@ -94,7 +96,7 @@ class OffreDetailSerializer(serializers.ModelSerializer):
 class OffreEditSerializer(serializers.ModelSerializer):
     class Meta:
         model = Offre
-        fields = ['client', 'entity', 'statut', 'sites', 'produit']
+        fields = ['client', 'entity', 'statut', 'sites', 'produit','doc_type']
 
 # Proforma Serializers
 class ProformaListSerializer(serializers.ModelSerializer):
@@ -121,7 +123,7 @@ class AffaireListSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Affaire
-        fields = ['id', 'reference', 'client_nom', 'offre_reference', 'statut', 'date_debut']
+        fields = ['id', 'reference', 'client_nom', 'offre_reference', 'statut', 'date_debut', 'date_fin_prevue']
 
 class AffaireDetailSerializer(serializers.ModelSerializer):
     offre = OffreDetailSerializer(read_only=True)
@@ -150,12 +152,12 @@ class FactureDetailSerializer(serializers.ModelSerializer):
 
 # Rapport Serializers
 class RapportListSerializer(serializers.ModelSerializer):
-    site_nom = serializers.CharField(source='site.nom', read_only=True)
-    produit_name = serializers.CharField(source='produit.name', read_only=True)
-    
+    affaire = AffaireListSerializer(read_only=True)
+    site = SiteListSerializer(read_only=True)
+    produit = ProductListSerializer(read_only=True)    
     class Meta:
         model = Rapport
-        fields = ['id', 'reference', 'site_nom', 'produit_name', 'statut', 'date_creation']
+        fields = ['id', 'reference', 'site', 'produit', 'statut', 'date_creation', 'affaire']
 
 class RapportDetailSerializer(serializers.ModelSerializer):
     affaire = AffaireListSerializer(read_only=True)
@@ -251,7 +253,7 @@ class ProformaEditSerializer(serializers.ModelSerializer):
 class AffaireEditSerializer(serializers.ModelSerializer):
     class Meta:
         model = Affaire
-        fields = ['offre', 'client', 'statut', 'date_debut', 'date_fin']
+        fields = ['offre', 'statut', 'date_debut', 'date_fin_prevue']
 
 # Facture Edit Serializer
 class FactureEditSerializer(serializers.ModelSerializer):
@@ -263,7 +265,7 @@ class FactureEditSerializer(serializers.ModelSerializer):
 class RapportEditSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rapport
-        fields = ['affaire', 'site', 'produit', 'statut', 'contenu']
+        fields = ['affaire', 'site', 'produit', 'statut',]
 
 # Formation Edit Serializer
 class FormationEditSerializer(serializers.ModelSerializer):
