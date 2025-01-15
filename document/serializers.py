@@ -129,6 +129,7 @@ class AffaireDetailSerializer(serializers.ModelSerializer):
     offre = OffreDetailSerializer(read_only=True)
     rapports = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     formations = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    client = ClientDetailSerializer(read_only=True)
     
     class Meta:
         model = Affaire
@@ -170,12 +171,12 @@ class RapportDetailSerializer(serializers.ModelSerializer):
 
 # Formation Serializers
 class FormationListSerializer(serializers.ModelSerializer):
-    client_nom = serializers.CharField(source='client.nom', read_only=True)
-    affaire_reference = serializers.CharField(source='affaire.reference', read_only=True)
+    client = ClientListSerializer(read_only=True)
+    affaire = AffaireListSerializer(read_only=True)
     
     class Meta:
         model = Formation
-        fields = ['id', 'titre', 'client_nom', 'affaire_reference', 'date_debut', 'date_fin']
+        fields = ['id', 'titre', 'client', 'affaire', 'date_debut', 'date_fin']
 
 class FormationDetailSerializer(serializers.ModelSerializer):
     participants = serializers.PrimaryKeyRelatedField(many=True, read_only=True)

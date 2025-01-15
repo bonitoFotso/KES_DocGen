@@ -207,6 +207,66 @@ class AffaireViewSet(BaseModelViewSet):
         formations = Formation.objects.filter(affaire=affaire)
         serializer = FormationListSerializer(formations, many=True)
         return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'])
+    def details_complets(self, request, pk=None):
+        affaire = self.get_object()
+
+        # Récupérer l'offre associée avec ses détails
+        offre_serializer = OffreDetailSerializer(affaire.offre)
+
+        # Récupérer le client associé avec ses détails
+        client_serializer = ClientDetailSerializer(affaire.client)
+
+
+        # Récupérer les rapports
+        rapports = Rapport.objects.filter(affaire=affaire)
+        rapports_serializer = RapportListSerializer(rapports, many=True)
+
+        # Récupérer les formations et leurs participants
+        formations = Formation.objects.filter(affaire=affaire)
+        formations_data = []
+
+        for formation in formations:
+            formation_serializer = FormationDetailSerializer(formation)
+            participants = Participant.objects.filter(formation=formation)
+            participants_serializer = ParticipantListSerializer(participants, many=True)
+
+            # Récupérer les attestations pour cette formation
+            attestations = AttestationFormation.objects.filter(formation=formation)
+            attestations_serializer = AttestationFormationListSerializer(attestations, many=True)
+
+            formations_data.append({
+                'formation': formation_serializer.data,
+                'participants': participants_serializer.data,
+                'attestations': attestations_serializer.data
+            })
+
+        # Récupérer la facture si elle existe
+        try:
+            facture = Facture.objects.get(affaire=affaire)
+            facture_serializer = FactureDetailSerializer(facture)
+            facture_data = facture_serializer.data
+        except Facture.DoesNotExist:
+            facture_data = None
+
+        # Assembler toutes les données
+        data = {
+            'affaire': AffaireDetailSerializer(affaire).data,
+            'client': client_serializer.data,
+            'offre': offre_serializer.data,
+            'rapports': rapports_serializer.data,
+            'formations': formations_data,
+            'facture': facture_data,
+            'statistiques': {
+                'nombre_rapports': rapports.count(),
+                'nombre_formations': formations.count(),
+                'nombre_total_participants': Participant.objects.filter(formation__affaire=affaire).count(),
+                'nombre_attestations': AttestationFormation.objects.filter(affaire=affaire).count(),
+            }
+        }
+
+        return Response(data)
 
 class FactureViewSet(BaseModelViewSet):
     queryset = Facture.objects.all()
